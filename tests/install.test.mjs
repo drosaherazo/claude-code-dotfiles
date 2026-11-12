@@ -102,7 +102,7 @@ test("with the copy fallback forced, files are copied and the summary warns that
   assert.equal(lstatSync(target).isSymbolicLink(), false);
   assert.equal(readFileSync(target, "utf8"), readFileSync(join(world.repo, "base", "statusline.mjs"), "utf8"));
   assert.match(result.stdout, /copied\s+statusline\.mjs/);
-  assert.match(result.stdout, /Summary: 0 linked, 1 copied, 1 merged, 0 unchanged/);
+  assert.match(result.stdout, /Summary: 0 linked, 1 copied, 1 merged, 1 added, 1 installed, 0 unchanged/);
   assert.match(result.stdout, /run the installer again/i);
 });
 
@@ -113,7 +113,7 @@ test("an identical copy is replaced by a link where symlinks are allowed", { ski
 
   assert.equal(result.code, 0, result.stderr);
   assert.ok(lstatSync(join(world.claudeDir, "statusline.mjs")).isSymbolicLink());
-  assert.match(result.stdout, /Summary: 1 linked, 0 copied, 0 merged, 1 unchanged/);
+  assert.match(result.stdout, /Summary: 1 linked, 0 copied, 0 merged, 0 added, 0 installed, 3 unchanged/);
 });
 
 test("the installer fails with a clear message when git or Node is missing", () => {
