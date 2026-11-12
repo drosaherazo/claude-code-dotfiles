@@ -95,3 +95,14 @@ test("the installer fails with a clear message when the Claude Code CLI is missi
   assert.match(result.stderr, /Claude Code CLI/);
   assert.deepEqual(world.claudeCalls(), []);
 });
+
+test("a plugin installed only for a project is still installed for the user", () => {
+  world.setClaudeState({ plugins: [{ id: "explorer@claude-code-dotfiles", scope: "project", enabled: true }] });
+
+  assert.equal(world.install().code, 0);
+
+  assert.ok(
+    world.claudeChanges().some((call) => call.join(" ") === "plugin install explorer@claude-code-dotfiles"),
+    JSON.stringify(world.claudeChanges()),
+  );
+});

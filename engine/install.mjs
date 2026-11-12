@@ -169,7 +169,8 @@ function planSettings() {
 }
 
 // Runs the Claude Code CLI. On Windows it may be a .cmd file, which only cmd.exe can start,
-// so each argument is quoted for cmd there.
+// so each argument is quoted for cmd there. cmd still expands %VAR% inside quotes, so a repo
+// path holding a % sign would be misread; Windows folder names rarely have one.
 const claude = (args) => {
   const options = { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] };
   if (process.platform !== "win32") return spawnSync("claude", args, options);
@@ -211,7 +212,12 @@ function planPlugins() {
   const { name: repoMarketplace } = readJson(join(repo, ".claude-plugin", "marketplace.json"), {});
   const { marketplaces, plugins } = declaredPlugins();
   const knownMarketplaces = claudeJson(["plugin", "marketplace", "list", "--json"]);
-  const installed = new Set(claudeJson(["plugin", "list", "--json"]).map((plugin) => plugin.id));
+  // Only user-scope installs count: a plugin installed for one project is not on every project.
+  const installed = new Set(
+    claudeJson(["plugin", "list", "--json"])
+      .filter((plugin) => plugin.scope === "user")
+      .map((plugin) => plugin.id),
+  );
 
   const run = (args, what) => () => {
     const result = claude(args);
