@@ -106,33 +106,63 @@ function planLinkedFile(repoPath, name) {
   };
 }
 
+// A JSON file's contents, or `fallback` when the file does not exist.
+const readJson = (path, fallback) => {
+  if (!existsSync(path)) return fallback;
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch (error) {
+    throw new Error(`${path} is not valid JSON (${error.message}). Fix or remove it, then run the installer again.`);
+  }
+};
+
+const isPlainObject = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
+
+// The items of `under` followed by those of `over` it lacks.
+const combineLists = (under, over) =>
+  over.reduce((list, item) => (list.some((kept) => isDeepStrictEqual(kept, item)) ? list : [...list, item]), [...under]);
+
+// `over` wins over `under`: objects merge key by key and lists are combined without repeats,
+// so a machine keeps what it accepted (such as permissions); any other value is replaced.
+const mergeSettings = (under, over) => {
+  const merged = { ...under };
+  for (const [key, value] of Object.entries(over)) {
+    if (isPlainObject(value) && isPlainObject(under[key])) merged[key] = mergeSettings(under[key], value);
+    else if (Array.isArray(value) && Array.isArray(under[key])) merged[key] = combineLists(under[key], value);
+    else merged[key] = value;
+  }
+  return merged;
+};
+
+// The dotted paths of every setting whose value differs between `before` and `after`.
+const changedKeys = (before, after, prefix = "") =>
+  Object.keys(after).flatMap((key) => {
+    const path = `${prefix}${key}`;
+    if (isPlainObject(before?.[key]) && isPlainObject(after[key])) return changedKeys(before[key], after[key], `${path}.`);
+    return isDeepStrictEqual(before?.[key], after[key]) ? [] : [path];
+  });
+
 function planSettings() {
   const name = "settings.json";
   const path = join(claudeDir, name);
-  const exists = existsSync(path);
-  let settings = {};
-  if (exists) {
-    try {
-      settings = JSON.parse(readFileSync(path, "utf8"));
-    } catch (error) {
-      throw new Error(`${path} is not valid JSON (${error.message}). Fix or remove it, then run the installer again.`);
-    }
-  }
-  // The repo's keys win; any other key the machine keeps inside statusLine survives (ADR 0004).
-  const statusLine = {
-    ...settings.statusLine,
-    type: "command",
-    command: `node "${join(claudeDir, "statusline.mjs").replaceAll("\\", "/")}"`,
-  };
-  if (isDeepStrictEqual(settings.statusLine, statusLine)) return { action: null, name };
+  const machine = readJson(path, null);
+  // The base also carries the status line command, which holds this machine's absolute path.
+  const base = mergeSettings(readJson(join(repo, "base", name), {}), {
+    statusLine: { type: "command", command: `node "${join(claudeDir, "statusline.mjs").replaceAll("\\", "/")}"` },
+  });
+  // Precedence, lowest first (ADR 0004): machine < base < profile < local layer.
+  const layers = [base, readJson(join(repo, "profile", name), {}), readJson(join(repo, "local", name), {})];
+  const settings = layers.reduce(mergeSettings, machine ?? {});
+  const changed = changedKeys(machine ?? {}, settings);
+  if (changed.length === 0) return { action: null, name };
   return {
     action: "merge",
     done: "merged",
     name,
+    detail: changed.join(", "),
     apply() {
       mkdirSync(claudeDir, { recursive: true });
-      if (exists) copyFileSync(path, join(backupFolder(), basename(path)));
-      settings.statusLine = statusLine;
+      if (machine) copyFileSync(path, join(backupFolder(), basename(path)));
       writeFileSync(path, `${JSON.stringify(settings, null, 2)}\n`);
     },
   };
@@ -163,14 +193,15 @@ process.on("uncaughtException", (error) => fail(error.message));
 
 const steps = [...LINKED_FILES.map(([repoPath, name]) => planLinkedFile(repoPath, name)), planSettings()];
 const changes = steps.filter((step) => step.action);
+const describe = (step) => (step.detail ? `${step.name} (${step.detail})` : step.name);
 
 if (dryRun) {
   console.log(`Claude Code dotfiles (dry run, nothing will be changed): ${claudeDir}`);
-  for (const step of changes) console.log(`  would ${step.action.padEnd(6)} ${step.name}`);
+  for (const step of changes) console.log(`  would ${step.action.padEnd(6)} ${describe(step)}`);
 } else {
   for (const step of changes) step.apply();
   console.log(`Claude Code dotfiles: ${claudeDir}`);
-  for (const step of changes) console.log(`  ${step.done.padEnd(7)} ${step.name}`);
+  for (const step of changes) console.log(`  ${step.done.padEnd(7)} ${describe(step)}`);
   if (backupDir) console.log(`Backed up replaced files to ${backupDir}`);
 }
 if (changes.length === 0) {

@@ -18,7 +18,8 @@ import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-// What a fresh clone contains that the installer can use; tests never see the rest.
+// What a fresh clone contains that the installer can use. The profile is left out on purpose:
+// a fork replaces it (ADR 0001), so tests write their own instead of relying on its contents.
 const CLONED_FOLDERS = ["engine", "base"];
 
 export const GIT_IDENTITY = {
@@ -121,6 +122,22 @@ export function createWorld() {
 
     readSettings() {
       return JSON.parse(readFileSync(join(claudeDir, "settings.json"), "utf8"));
+    },
+
+    // Writes a JSON file into one layer of the throwaway clone: "base", "profile" or "local".
+    writeLayer(layer, file, value) {
+      mkdirSync(join(repo, layer), { recursive: true });
+      writeFileSync(join(repo, layer, file), typeof value === "string" ? value : JSON.stringify(value, null, 2));
+    },
+
+    // Puts a settings.json on the machine as it was before the install.
+    writeMachineSettings(value) {
+      mkdirSync(claudeDir, { recursive: true });
+      writeFileSync(join(claudeDir, "settings.json"), JSON.stringify(value));
+    },
+
+    removeLayer(layer) {
+      rmSync(join(repo, layer), { recursive: true, force: true });
     },
 
     cleanup() {
