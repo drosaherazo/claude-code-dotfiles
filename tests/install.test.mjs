@@ -40,15 +40,15 @@ test("existing settings keys are kept and an existing status line is backed up t
   writeFileSync(join(world.claudeDir, "statusline.mjs"), "// my old status line\n");
   writeFileSync(
     join(world.claudeDir, "settings.json"),
-    JSON.stringify({ model: "sonnet", permissions: { allow: ["Bash(ls)"] }, statusLine: { type: "command", command: "old" } }),
+    JSON.stringify({ cleanupPeriodDays: 30, permissions: { allow: ["Bash(ls)"] }, statusLine: { type: "command", command: "old" } }),
   );
 
   const result = world.install();
 
   assert.equal(result.code, 0, result.stderr);
   const settings = world.readSettings();
-  assert.equal(settings.model, "sonnet");
-  assert.deepEqual(settings.permissions, { allow: ["Bash(ls)"] });
+  assert.equal(settings.cleanupPeriodDays, 30);
+  assert.deepEqual(settings.permissions.allow, ["Bash(ls)"]);
   assert.notEqual(settings.statusLine.command, "old");
 
   const reported = result.stdout.match(/Backed up .* to (.+)$/m);
