@@ -126,7 +126,8 @@ export function createWorld() {
 
     // The calls that change the machine: adding a marketplace or installing a plugin.
     claudeChanges() {
-      return this.claudeCalls().filter((call) => call.includes("add") || call.includes("install"));
+      const command = (call) => call.slice(0, call[1] === "marketplace" ? 3 : 2).join(" ");
+      return this.claudeCalls().filter((call) => ["plugin install", "plugin marketplace add"].includes(command(call)));
     },
 
     // What the fake `claude` already has: { marketplaces, plugins, failInstall } as the

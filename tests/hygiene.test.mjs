@@ -15,7 +15,7 @@ const filesIn = (folder) =>
 
 const shared = [...filesIn("engine"), ...filesIn("base"), ...filesIn("plugins")];
 
-test("the engine and the base import only Node's built-in modules or their own files", () => {
+test("the engine and the base scripts import only Node's built-in modules or their own files", () => {
   const offenders = [];
   for (const file of shared.filter((f) => f.endsWith(".mjs"))) {
     const source = readFileSync(file, "utf8");
