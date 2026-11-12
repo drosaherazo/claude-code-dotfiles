@@ -1,0 +1,5 @@
+# Local layer: machine-only content that never reaches GitHub (ADR 0002)
+local/
+
+node_modules/
+.DS_Store
