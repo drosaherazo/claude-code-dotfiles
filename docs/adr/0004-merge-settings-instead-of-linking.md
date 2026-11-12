@@ -1,0 +1,3 @@
+# Merge settings.json instead of linking it
+
+Unlike the other files, `settings.json` is merged, not linked. Claude Code rewrites it on its own (accepted permissions, `/config` changes) and it holds per-machine values such as the absolute path to the status line script, so a linked copy would keep the repo dirty and break on another operating system. The repo keeps a base `settings.json` with only what is truly the person's; the installer merges it into each machine's file, the repo's keys winning and everything else kept. Changes made in `/config` that should travel are moved into the repo by hand, and the drift check points them out.
