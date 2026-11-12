@@ -2,7 +2,8 @@ import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { createWorld, symlinksAllowed } from "./harness.mjs";
+import { spawnSync } from "node:child_process";
+import { createWorld, pathSeparator, symlinksAllowed } from "./harness.mjs";
 
 let world;
 beforeEach(() => {
@@ -123,4 +124,37 @@ test("the installer fails with a clear message when git or Node is missing", () 
   assert.match(result.stderr, /node/i);
   assert.match(result.stderr, /install/i);
   assert.equal(existsSync(world.claudeDir), false, "nothing should be installed");
+});
+
+test("other keys inside an existing statusLine setting are kept", () => {
+  mkdirSync(world.claudeDir, { recursive: true });
+  writeFileSync(join(world.claudeDir, "settings.json"), JSON.stringify({ statusLine: { type: "command", command: "old", padding: 2 } }));
+
+  assert.equal(world.install().code, 0);
+
+  const { statusLine } = world.readSettings();
+  assert.equal(statusLine.padding, 2);
+  assert.notEqual(statusLine.command, "old");
+});
+
+test("a malformed settings.json stops the install with a message naming the file", () => {
+  mkdirSync(world.claudeDir, { recursive: true });
+  writeFileSync(join(world.claudeDir, "settings.json"), "{ not json");
+
+  const result = world.install();
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /settings\.json/);
+  assert.equal(readFileSync(join(world.claudeDir, "settings.json"), "utf8"), "{ not json");
+  assert.equal(existsSync(join(world.claudeDir, "statusline.mjs")), false, "nothing should be installed");
+});
+
+test("the fake claude on the PATH records the arguments it is called with", () => {
+  const env = { ...process.env };
+  for (const key of Object.keys(env)) if (key.toUpperCase() === "PATH") delete env[key];
+  env.PATH = `${world.bin}${pathSeparator()}${process.env.PATH ?? process.env.Path ?? ""}`;
+
+  spawnSync("claude", ["plugin", "install", "x"], { env, shell: true });
+
+  assert.deepEqual(world.claudeCalls(), [["plugin", "install", "x"]]);
 });
