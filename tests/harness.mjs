@@ -18,8 +18,9 @@ import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-// What a fresh clone contains that the installer can use; tests never see the rest.
-const CLONED_FOLDERS = ["engine", "base", "profile"];
+// What a fresh clone contains that the installer can use. The profile is left out on purpose:
+// a fork replaces it (ADR 0001), so tests write their own instead of relying on its contents.
+const CLONED_FOLDERS = ["engine", "base"];
 
 export const GIT_IDENTITY = {
   GIT_AUTHOR_NAME: "Test",
