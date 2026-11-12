@@ -3,3 +3,6 @@ local/
 
 node_modules/
 .DS_Store
+
+# Types the plugin runtime writes beside each plugin while it loads
+plugins/*/.claude-plugin/types/

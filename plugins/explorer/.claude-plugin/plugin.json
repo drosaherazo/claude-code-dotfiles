@@ -1,0 +1,6 @@
+{
+  "name": "explorer",
+  "version": "0.1.0",
+  "description": "A side pane with the repo's git status (branch, ahead/behind, staged and changed files) above a navigable file tree.",
+  "types": "./types/index.d.ts"
+}
