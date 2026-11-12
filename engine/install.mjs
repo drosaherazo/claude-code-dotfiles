@@ -110,8 +110,17 @@ function planSettings() {
   const name = "settings.json";
   const path = join(claudeDir, name);
   const exists = existsSync(path);
-  const settings = exists ? JSON.parse(readFileSync(path, "utf8")) : {};
+  let settings = {};
+  if (exists) {
+    try {
+      settings = JSON.parse(readFileSync(path, "utf8"));
+    } catch (error) {
+      throw new Error(`${path} is not valid JSON (${error.message}). Fix or remove it, then run the installer again.`);
+    }
+  }
+  // The repo's keys win; any other key the machine keeps inside statusLine survives (ADR 0004).
   const statusLine = {
+    ...settings.statusLine,
     type: "command",
     command: `node "${join(claudeDir, "statusline.mjs").replaceAll("\\", "/")}"`,
   };
