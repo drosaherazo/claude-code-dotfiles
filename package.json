@@ -9,6 +9,7 @@
   },
   "scripts": {
     "install-dotfiles": "node engine/install.mjs",
-    "test": "node --test \"tests/*.test.mjs\""
+    "test": "node --test \"tests/*.test.mjs\"",
+    "test:plugins": "claude plugin validate . && claude plugin validate plugins/explorer && claude plugin test plugins/explorer"
   }
 }
