@@ -118,11 +118,18 @@ const readJson = (path, fallback) => {
 
 const isPlainObject = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 
-// `over` wins over `under`; objects merge key by key, anything else (arrays included) is replaced.
+// The items of `under` followed by those of `over` it lacks.
+const combineLists = (under, over) =>
+  over.reduce((list, item) => (list.some((kept) => isDeepStrictEqual(kept, item)) ? list : [...list, item]), [...under]);
+
+// `over` wins over `under`: objects merge key by key and lists are combined without repeats,
+// so a machine keeps what it accepted (such as permissions); any other value is replaced.
 const mergeSettings = (under, over) => {
   const merged = { ...under };
   for (const [key, value] of Object.entries(over)) {
-    merged[key] = isPlainObject(value) && isPlainObject(under[key]) ? mergeSettings(under[key], value) : value;
+    if (isPlainObject(value) && isPlainObject(under[key])) merged[key] = mergeSettings(under[key], value);
+    else if (Array.isArray(value) && Array.isArray(under[key])) merged[key] = combineLists(under[key], value);
+    else merged[key] = value;
   }
   return merged;
 };

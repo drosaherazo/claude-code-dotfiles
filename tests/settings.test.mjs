@@ -91,3 +91,25 @@ test("a malformed layer settings file stops the install with a message naming it
   assert.equal(result.code, 1);
   assert.match(result.stderr, /local[\\/]settings\.json is not valid JSON/);
 });
+
+test("lists from the layers are combined with the machine's, without repeats", () => {
+  world.writeMachineSettings({ permissions: { allow: ["Bash(npm test)", "Read"] } });
+  world.writeLayer("base", "settings.json", { permissions: { allow: ["Read", "Glob"] } });
+  world.writeLayer("profile", "settings.json", { permissions: { allow: ["Bash(git status)"] } });
+
+  assert.equal(world.install().code, 0);
+
+  assert.deepEqual(world.readSettings().permissions.allow, ["Bash(npm test)", "Read", "Glob", "Bash(git status)"]);
+});
+
+test("a list already holding everything the layers declare is left unchanged", () => {
+  world.writeLayer("profile", "settings.json", { permissions: { allow: ["Read"] } });
+  assert.equal(world.install().code, 0);
+  const settings = world.readSettings();
+  settings.permissions.allow.unshift("Bash(npm test)");
+  world.writeMachineSettings(settings);
+
+  const result = world.install();
+
+  assert.match(result.stdout, /nothing to change/i);
+});
