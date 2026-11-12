@@ -1,0 +1,17 @@
+{
+  "model": "opus",
+  "permissions": {
+    "defaultMode": "auto"
+  },
+  "modelSettings": {
+    "claude-opus-5-5": {
+      "effortLevel": "medium"
+    },
+    "claude-fable-5-2": {
+      "effortLevel": "high"
+    }
+  },
+  "enabledPlugins": {
+    "mattpocock-skills@claude-plugins-official": true
+  }
+}
