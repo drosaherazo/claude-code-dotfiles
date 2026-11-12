@@ -1,0 +1,14 @@
+{
+  "name": "claude-code-dotfiles",
+  "private": true,
+  "description": "A portable Claude Code setup: clone it on any machine, run one command, and Claude Code works the same way everywhere.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "install-dotfiles": "node engine/install.mjs",
+    "test": "node --test \"tests/*.test.mjs\""
+  }
+}
