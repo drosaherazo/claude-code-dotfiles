@@ -20,7 +20,7 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 // What a fresh clone contains that the installer can use. The profile is left out on purpose:
 // a fork replaces it (ADR 0001), so tests write their own instead of relying on its contents.
-const CLONED_FOLDERS = ["engine", "base"];
+const CLONED_FOLDERS = ["engine", "base", "plugins", ".claude-plugin"];
 
 export const GIT_IDENTITY = {
   GIT_AUTHOR_NAME: "Test",
@@ -80,16 +80,12 @@ export function createWorld() {
   git(repo, "add", "-A");
   git(repo, "commit", "-q", "-m", "snapshot");
 
-  // A fake `claude` on the PATH that records each call's arguments, one JSON array per line.
-  const recorder = join(bin, "fake-claude.mjs");
-  writeFileSync(
-    recorder,
-    `import { appendFileSync } from "node:fs";\n` +
-      `appendFileSync(${JSON.stringify(claudeCalls)}, JSON.stringify(process.argv.slice(2)) + "\\n");\n`,
-  );
+  // A fake `claude` on the PATH (see fake-claude.mjs): it records each call, one JSON array per
+  // line, and plays the plugin commands against claude-state.json in the world folder.
+  const fake = JSON.stringify(join(dirname(fileURLToPath(import.meta.url)), "fake-claude.mjs"));
   const node = JSON.stringify(process.execPath);
-  writeFileSync(join(bin, "claude"), `#!/bin/sh\nexec ${node} "${recorder}" "$@"\n`, { mode: 0o755 });
-  writeFileSync(join(bin, "claude.cmd"), `@echo off\r\n${node} "${recorder}" %*\r\n`);
+  writeFileSync(join(bin, "claude"), `#!/bin/sh\nexec ${node} ${fake} "${root}" "$@"\n`, { mode: 0o755 });
+  writeFileSync(join(bin, "claude.cmd"), `@echo off\r\n${node} ${fake} "${root}" %*\r\n`);
 
   const claudeDir = join(home, ".claude");
 
@@ -118,6 +114,26 @@ export function createWorld() {
       } catch {
         return [];
       }
+    },
+
+    // A PATH with git and Node on it but no `claude`, fake or real.
+    toolsWithoutClaude() {
+      const gitCore = git(root, "--exec-path").trim();
+      // Git for Windows' git-core binaries load their libraries from mingw64/bin.
+      const dirs = [dirname(process.execPath), gitCore, join(gitCore, "..", "..", "bin")];
+      return dirs.join(pathSeparator());
+    },
+
+    // The calls that change the machine: adding a marketplace or installing a plugin.
+    claudeChanges() {
+      const command = (call) => call.slice(0, call[1] === "marketplace" ? 3 : 2).join(" ");
+      return this.claudeCalls().filter((call) => ["plugin install", "plugin marketplace add"].includes(command(call)));
+    },
+
+    // What the fake `claude` already has: { marketplaces, plugins, failInstall } as the
+    // real CLI's list commands print them, plus plugin ids whose install should fail.
+    setClaudeState(state) {
+      writeFileSync(join(root, "claude-state.json"), JSON.stringify({ marketplaces: [], plugins: [], failInstall: [], ...state }));
     },
 
     readSettings() {

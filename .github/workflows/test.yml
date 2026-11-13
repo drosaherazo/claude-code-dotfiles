@@ -20,3 +20,15 @@ jobs:
           # The oldest Node the installer supports (package.json "engines").
           node-version: 22
       - run: npm test
+
+  plugins:
+    name: plugins (validate and test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # The plugin test kit ships with the Claude Code CLI; validation and tests need no sign-in.
+      - run: npm install --global @anthropic-ai/claude-code@2.1.318
+      - run: npm run test:plugins

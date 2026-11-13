@@ -168,6 +168,93 @@ function planSettings() {
   };
 }
 
+// Runs the Claude Code CLI. On Windows it may be a .cmd file, which only cmd.exe can start,
+// so each argument is quoted for cmd there. cmd still expands %VAR% inside quotes, so a repo
+// path holding a % sign would be misread; Windows folder names rarely have one.
+const claude = (args) => {
+  const options = { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] };
+  if (process.platform !== "win32") return spawnSync("claude", args, options);
+  const line = ["claude", ...args].map((arg) => `"${arg.replaceAll('"', '""')}"`).join(" ");
+  return spawnSync(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", `"${line}"`], {
+    ...options,
+    windowsVerbatimArguments: true,
+  });
+};
+
+const claudeJson = (args) => {
+  const result = claude(args);
+  if (result.status !== 0) throw new Error(`claude ${args.join(" ")} failed: ${(result.stderr || result.stdout).trim()}`);
+  return JSON.parse(result.stdout);
+};
+
+const samePath = (a, b) => {
+  const normal = (path) => {
+    const real = existsSync(path) ? realpathSync(path) : path;
+    return process.platform === "win32" ? real.toLowerCase() : real;
+  };
+  return normal(a) === normal(b);
+};
+
+// Marketplaces and plugins declared by the layers, in the order base, profile, local layer.
+// Each layer's plugins.json reads { "marketplaces": { name: "owner/repo" }, "plugins": ["name@marketplace"] }.
+function declaredPlugins() {
+  const marketplaces = {};
+  const plugins = [];
+  for (const layer of ["base", "profile", "local"]) {
+    const declared = readJson(join(repo, layer, "plugins.json"), {});
+    Object.assign(marketplaces, declared.marketplaces);
+    for (const id of declared.plugins ?? []) if (!plugins.includes(id)) plugins.push(id);
+  }
+  return { marketplaces, plugins };
+}
+
+function planPlugins() {
+  const { name: repoMarketplace } = readJson(join(repo, ".claude-plugin", "marketplace.json"), {});
+  const { marketplaces, plugins } = declaredPlugins();
+  const knownMarketplaces = claudeJson(["plugin", "marketplace", "list", "--json"]);
+  // Only user-scope installs count: a plugin installed for one project is not on every project.
+  const installed = new Set(
+    claudeJson(["plugin", "list", "--json"])
+      .filter((plugin) => plugin.scope === "user")
+      .map((plugin) => plugin.id),
+  );
+
+  const run = (args, what) => () => {
+    const result = claude(args);
+    if (result.status !== 0) throw new Error(`could not ${what}: ${(result.stderr || result.stdout).trim()}`);
+  };
+  const steps = [];
+
+  // The repo folder itself, so plugin edits are live after a plugin reload (no reinstall).
+  if (repoMarketplace) {
+    const name = `marketplace ${repoMarketplace}`;
+    const known = knownMarketplaces.some((m) => m.name === repoMarketplace && m.path && samePath(m.path, repo));
+    steps.push(
+      known
+        ? { action: null, name }
+        : { action: "add", done: "added", name, apply: run(["plugin", "marketplace", "add", repo], `add ${name}`) },
+    );
+  }
+  for (const [marketplace, source] of Object.entries(marketplaces)) {
+    const name = `marketplace ${marketplace}`;
+    const known = knownMarketplaces.some((m) => m.name === marketplace && m.repo === source);
+    steps.push(
+      known
+        ? { action: null, name }
+        : { action: "add", done: "added", name, apply: run(["plugin", "marketplace", "add", source], `add ${name}`) },
+    );
+  }
+  for (const id of plugins) {
+    const name = `plugin ${id}`;
+    steps.push(
+      installed.has(id)
+        ? { action: null, name }
+        : { action: "install", done: "installed", name, apply: run(["plugin", "install", id], `install ${name}`) },
+    );
+  }
+  return steps;
+}
+
 const USAGE = "Usage: node engine/install.mjs [--dry-run]";
 const args = process.argv.slice(2);
 const unknown = args.filter((arg) => arg !== "--dry-run");
@@ -182,16 +269,25 @@ const fail = (message) => {
   process.exit(1);
 };
 
-// git fetches and syncs the repo; Node runs the status line through `node` on the PATH.
-const REQUIRED_TOOLS = ["git", "node"];
-const missing = REQUIRED_TOOLS.filter((tool) => spawnSync(tool, ["--version"], { stdio: "ignore" }).error);
+// git fetches and syncs the repo; Node runs the status line through `node` on the PATH; the
+// Claude Code CLI adds the marketplaces and installs the plugins.
+const found = (result) => !result.error && result.status === 0;
+const missing = [
+  ...["git", "node"].filter((tool) => !found(spawnSync(tool, ["--version"], { stdio: "ignore" }))),
+  ...(found(claude(["--version"])) ? [] : ["the Claude Code CLI (claude)"]),
+];
 if (missing.length > 0) {
-  fail(`${missing.join(" and ")} not found on the PATH. Install ${missing.join(" and ")}, then run the installer again.`);
+  const tools = missing.join(" and ");
+  fail(`${tools} not found on the PATH. Install ${tools}, then run the installer again.`);
 }
 
 process.on("uncaughtException", (error) => fail(error.message));
 
-const steps = [...LINKED_FILES.map(([repoPath, name]) => planLinkedFile(repoPath, name)), planSettings()];
+const steps = [
+  ...LINKED_FILES.map(([repoPath, name]) => planLinkedFile(repoPath, name)),
+  planSettings(),
+  ...planPlugins(),
+];
 const changes = steps.filter((step) => step.action);
 const describe = (step) => (step.detail ? `${step.name} (${step.detail})` : step.name);
 
@@ -210,7 +306,8 @@ if (changes.length === 0) {
   const count = (done) => changes.filter((step) => step.done === done).length;
   const copied = count("copied");
   console.log(
-    `Summary: ${count("linked")} linked, ${copied} copied, ${count("merged")} merged, ${steps.length - changes.length} unchanged.`,
+    `Summary: ${count("linked")} linked, ${copied} copied, ${count("merged")} merged, ${count("added")} added, ` +
+      `${count("installed")} installed, ${steps.length - changes.length} unchanged.`,
   );
   if (copied > 0) {
     console.log(

@@ -1,0 +1,13 @@
+{
+  "name": "claude-code-dotfiles",
+  "owner": {
+    "name": "claude-code-dotfiles contributors"
+  },
+  "plugins": [
+    {
+      "name": "explorer",
+      "source": "./plugins/explorer",
+      "description": "A side pane with the repo's git status (branch, ahead/behind, staged and changed files) above a navigable file tree."
+    }
+  ]
+}

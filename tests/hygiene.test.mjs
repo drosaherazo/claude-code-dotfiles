@@ -1,4 +1,4 @@
-// Guards for rules that hold across the engine and the base (ADR 0001): they work on a
+// Guards for rules that hold across the engine, the base and the plugins (ADR 0001): they work on a
 // fresh machine with nothing but Node, and they carry nobody's personal values.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -13,9 +13,9 @@ const filesIn = (folder) =>
     .filter((entry) => entry.isFile())
     .map((entry) => join(entry.parentPath, entry.name));
 
-const shared = [...filesIn("engine"), ...filesIn("base")];
+const shared = [...filesIn("engine"), ...filesIn("base"), ...filesIn("plugins")];
 
-test("the engine and the base import only Node's built-in modules or their own files", () => {
+test("the engine and the base scripts import only Node's built-in modules or their own files", () => {
   const offenders = [];
   for (const file of shared.filter((f) => f.endsWith(".mjs"))) {
     const source = readFileSync(file, "utf8");
@@ -32,7 +32,7 @@ test("the engine and the base import only Node's built-in modules or their own f
   assert.equal(pkg.devDependencies, undefined);
 });
 
-test("the engine and the base contain no personal values such as home paths or email addresses", () => {
+test("the engine, the base and the plugins contain no personal values such as home paths or email addresses", () => {
   const personal = [
     /[A-Za-z]:[\\/]Users[\\/]/, // Windows home folder
     /\/(?:Users|home)\/[a-z]/, // macOS or Linux home folder
