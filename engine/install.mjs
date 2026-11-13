@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-// The engine's installer: brings this machine's ~/.claude in line with the repo.
+// The engine's installer: brings this machine's ~/.claude in line with the repo, and through
+// the Claude Code CLI registers the repo and the declared marketplaces and installs the
+// declared plugins.
 // No third-party dependencies and no personal values: everything personal comes from
 // the profile or the local layer.
 //

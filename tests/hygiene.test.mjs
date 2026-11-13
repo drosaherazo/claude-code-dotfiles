@@ -1,5 +1,6 @@
-// Guards for rules that hold across the engine, the base and the plugins (ADR 0001): they work on a
-// fresh machine with nothing but Node, and they carry nobody's personal values.
+// Guards for rules that hold across the shared layers (ADR 0001): the engine and the base scripts
+// run on a fresh machine with nothing but Node, and the engine, the base and the plugins carry
+// nobody's personal values.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
