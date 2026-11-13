@@ -5,6 +5,9 @@ import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { createWorld } from "./harness.mjs";
 
+// Whether the installer ran `claude plugin install <id>`.
+const installed = (id) => world.claudeChanges().some((call) => call.join(" ") === `plugin install ${id}`);
+
 let world;
 beforeEach(() => {
   world = createWorld();
@@ -36,10 +39,7 @@ test("plugins declared in the local layer are installed too", () => {
 
   assert.equal(world.install().code, 0);
 
-  assert.ok(
-    world.claudeChanges().some((call) => call.join(" ") === "plugin install work-tools@claude-plugins-official"),
-    JSON.stringify(world.claudeChanges()),
-  );
+  assert.ok(installed("work-tools@claude-plugins-official"), JSON.stringify(world.claudeChanges()));
 });
 
 test("a second run reinstalls nothing and adds no marketplace again", () => {
@@ -96,13 +96,10 @@ test("the installer fails with a clear message when the Claude Code CLI is missi
   assert.deepEqual(world.claudeCalls(), []);
 });
 
-test("a plugin installed only for a project is still installed for the user", () => {
+test("a plugin installed only for a project is installed for the user as well", () => {
   world.setClaudeState({ plugins: [{ id: "explorer@claude-code-dotfiles", scope: "project", enabled: true }] });
 
   assert.equal(world.install().code, 0);
 
-  assert.ok(
-    world.claudeChanges().some((call) => call.join(" ") === "plugin install explorer@claude-code-dotfiles"),
-    JSON.stringify(world.claudeChanges()),
-  );
+  assert.ok(installed("explorer@claude-code-dotfiles"), JSON.stringify(world.claudeChanges()));
 });
